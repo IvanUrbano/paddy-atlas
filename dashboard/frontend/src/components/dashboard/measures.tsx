@@ -4,6 +4,7 @@ import { decimal, int } from '../../lib/format'
 import {
   excessKurtosis,
   iqrOutliers,
+  median,
   quantile,
   skewness,
   summarize,
@@ -451,24 +452,50 @@ export function DispersionPanel({ rows }: { rows: number[][] }) {
   )
 }
 
-const DIMENSIONS = [
-  { value: 'variety', label: 'Variety', index: COLUMN.variety, names: 'varieties' },
-  { value: 'soil', label: 'Soil', index: COLUMN.soil, names: 'soils' },
-  { value: 'block', label: 'Agriblock', index: COLUMN.block, names: 'blocks' },
-] as const
+type Dimension = 'variety' | 'soil' | 'block' | 'size'
 
-type Dimension = (typeof DIMENSIONS)[number]['value']
+const DIMENSIONS: {
+  value: Dimension
+  label: string
+  index: number
+  levels: (eda: Eda) => { label: string; value: number }[]
+}[] = [
+  {
+    value: 'variety',
+    label: 'Variety',
+    index: COLUMN.variety,
+    levels: (eda) => eda.meta.varieties.map((label, value) => ({ label, value })),
+  },
+  {
+    value: 'soil',
+    label: 'Soil',
+    index: COLUMN.soil,
+    levels: (eda) => eda.meta.soils.map((label, value) => ({ label, value })),
+  },
+  {
+    value: 'block',
+    label: 'Agriblock',
+    index: COLUMN.block,
+    levels: (eda) => eda.meta.blocks.map((label, value) => ({ label, value })),
+  },
+  {
+    value: 'size',
+    label: 'Plot size',
+    index: COLUMN.hectares,
+    levels: () => [1, 2, 3, 4, 5, 6].map((value) => ({ label: `${value} ha`, value })),
+  },
+]
 
 export function DispersionBox({ rows, eda }: { rows: number[][]; eda: Eda }) {
-  const [dimension, setDimension] = useState<Dimension>('variety')
+  const [dimension, setDimension] = useState<Dimension>('size')
   const config = DIMENSIONS.find((item) => item.value === dimension) ?? DIMENSIONS[0]
-  const labels = eda.meta[config.names]
+  const labels = config.levels(eda)
 
   const groups = useMemo(
     () =>
-      labels.flatMap((label, index) => {
+      labels.flatMap(({ label, value }) => {
         const values = rows
-          .filter((row) => row[config.index] === index)
+          .filter((row) => row[config.index] === value)
           .map((row) => row[COLUMN.yield] / row[COLUMN.hectares])
         return values.length > 0 ? [{ label, ...summarize(values) }] : []
       }),
@@ -479,6 +506,7 @@ export function DispersionBox({ rows, eda }: { rows: number[][]; eda: Eda }) {
     () => rows.map((row) => row[COLUMN.yield] / row[COLUMN.hectares]),
     [rows],
   )
+  const overallMedian = median(allValues)
 
   const low = allValues.length ? Math.floor(Math.min(...allValues) / 50) * 50 : 0
   const highValue = allValues.length ? Math.ceil(Math.max(...allValues) / 50) * 50 : 50
@@ -490,8 +518,8 @@ export function DispersionBox({ rows, eda }: { rows: number[][]; eda: Eda }) {
     <Panel className="h-full">
       <PanelHead
         kicker="Spread by category"
-        title="The middle 50%, group by group"
-        note="Each row rescales to the filtered per-hectare values. Whiskers span the minimum and maximum; the box is Q1–Q3; the notch is the median."
+        title={dimension === 'size' ? 'Per-hectare spread by plot size' : 'The middle 50%, group by group'}
+        note="Each row rescales to the filtered per-hectare values. Whiskers span the minimum and maximum; the box is Q1–Q3; the line is the median."
         action={
           <Segmented
             label="Grouping for dispersion"
@@ -508,14 +536,20 @@ export function DispersionBox({ rows, eda }: { rows: number[][]; eda: Eda }) {
             .map((group) => `${group.label} median ${int(group.median)}`)
             .join(', ')}`}
         >
+          <div className="mb-2 grid grid-cols-[minmax(64px,88px)_1fr_40px_52px] gap-2.5 text-[0.52rem] uppercase tracking-[0.12em] text-forest-900/35">
+            <span>Group</span>
+            <span />
+            <span className="text-right">n</span>
+            <span className="text-right">Median</span>
+          </div>
           <div className="space-y-4">
             {groups.map((group) => (
               <div
                 key={group.label}
-                className="grid grid-cols-[minmax(64px,88px)_1fr_52px] items-center gap-2.5"
-                title={`${group.label}: min ${int(group.min)}, Q1 ${int(group.q1)}, median ${int(
-                  group.median,
-                )}, Q3 ${int(group.q3)}, max ${int(group.max)} kg/ha`}
+                className="grid grid-cols-[minmax(64px,88px)_1fr_40px_52px] items-center gap-2.5"
+                title={`${group.label}: n ${group.count}, min ${int(group.min)}, Q1 ${int(
+                  group.q1,
+                )}, median ${int(group.median)}, Q3 ${int(group.q3)}, max ${int(group.max)} kg/ha`}
               >
                 <span className="truncate text-[0.68rem] font-medium text-forest-900/70">
                   {group.label}
@@ -534,7 +568,14 @@ export function DispersionBox({ rows, eda }: { rows: number[][]; eda: Eda }) {
                     className="absolute top-1/2 h-5 w-[2px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-forest-900"
                     style={{ left: `${position(group.median)}%` }}
                   />
+                  <div
+                    className="absolute inset-y-1 w-px border-l border-dashed border-clay-500/50"
+                    style={{ left: `${position(overallMedian)}%` }}
+                  />
                 </div>
+                <span className="text-right text-[0.6rem] tabular-nums text-forest-900/45">
+                  {int(group.count)}
+                </span>
                 <span className="text-right text-[0.64rem] font-semibold tabular-nums text-forest-950">
                   {int(group.median)}
                 </span>
@@ -553,8 +594,11 @@ export function DispersionBox({ rows, eda }: { rows: number[][]; eda: Eda }) {
         </div>
       )}
       <p className="mt-3 text-[0.64rem] leading-relaxed text-forest-900/45">
-        Right column repeats the median. Overlapping boxes mean the groups are practically
-        indistinguishable on this scale.
+        {groups.length > 0
+          ? `Dashed line marks the overall median (${int(
+              overallMedian,
+            )} kg/ha). Overlapping boxes show that the group distributions overlap on this scale; they do not establish equivalence.`
+          : 'No plots match the current filters, so no distribution is shown.'}
       </p>
     </Panel>
   )
@@ -578,7 +622,7 @@ export function DispersionContrast({ rows }: { rows: number[][] }) {
         ? 'One plot has no spread to normalise.'
         : fixedSize
           ? 'Fixed plot size leaves the spread unchanged.'
-          : 'Normalising by area collapses the spread.'
+          : 'Normalising by area removes most of the spread.'
   const ratioLabel =
     rows.length === 0
       ? 'No plots in view'
@@ -594,7 +638,7 @@ export function DispersionContrast({ rows }: { rows: number[][] }) {
         ? 'With one plot there is no variation, and the size effect cannot be estimated.'
         : fixedSize
           ? 'All filtered plots share the same area, so removing it cannot reduce the spread. The full-sample contrast returns when plot size varies.'
-          : 'Most of the apparent spread is plot size, not productivity — every comparison in this dashboard therefore leads with kg/ha.'
+          : 'Most of the apparent total-yield spread comes from plot area. The per-hectare CV is lower, but the full sample still contains a size gradient.'
 
   return (
     <Panel className="border-transparent bg-forest-950 text-cream-50">

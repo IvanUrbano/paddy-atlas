@@ -7,8 +7,8 @@ import { SectionLabel } from '../ui/SectionLabel'
 import { SplitWords } from '../ui/SplitWords'
 
 const windows = ['D1–30', 'D31–60', 'D61–90', 'D91–120']
-const rainfall = [18.85, 186.2, 166.15, 60.5]
-const irrigation = [21.15, 271.8, 250.85, 64.5]
+const rainfall = [18.7, 186.0, 166.2, 60.4]
+const irrigation = [21.3, 272.0, 250.8, 64.6]
 const max = 272
 
 export function Impact() {
@@ -24,16 +24,15 @@ export function Impact() {
         <div className="mt-10 grid gap-10 lg:grid-cols-12 lg:items-end">
           <SplitWords
             as="h2"
-            lines={['Numbers that grew', 'out of the soil.']}
-            emphasis={['soil.']}
+            lines={['The cleaned', 'dataset at', 'a glance.']}
+            emphasis={['cleaned']}
             emphasisClassName="text-lime-300"
             className="display-xl text-cream-50 lg:col-span-7"
           />
           <Reveal delay={0.15} className="lg:col-span-4 lg:col-start-9">
             <p className="text-sm leading-relaxed text-cream-50/55">
-              Every figure below comes from the same cleaned frame. Nothing is estimated, nothing is
-              rounded up — duplicates are gone, types are fixed, and the outcome is measured in
-              kilograms per plot.
+              Figures below use the cleaned 2,338-plot frame. Counts are exact; rainfall and
+              irrigation are block-window means. Total yield is measured in kilograms per plot.
             </p>
           </Reveal>
         </div>
@@ -56,7 +55,7 @@ export function Impact() {
           <Reveal className="lg:col-span-4">
             <p className="eyebrow text-cream-50/40">Water by growth window</p>
             <p className="mt-4 max-w-xs font-display text-xl leading-snug text-cream-50/85">
-              Irrigation peaks between day 31 and 60 — where the crop builds its structure.
+              Mean rainfall and irrigation are highest between day 31 and 60.
             </p>
             <div className="mt-6 flex flex-wrap gap-5 text-[0.62rem] uppercase tracking-[0.16em] text-cream-50/45">
               <span className="flex items-center gap-2">
@@ -102,7 +101,7 @@ export function Impact() {
               ))}
             </div>
             <p className="mt-8 text-[0.62rem] uppercase tracking-[0.16em] text-cream-50/30">
-              Observed midpoints of each published range · millimetres
+              Full-sample block-window means · millimetres
             </p>
           </div>
         </div>
@@ -111,12 +110,12 @@ export function Impact() {
       <div className="relative border-t border-cream-50/10 py-4 text-[0.62rem]">
         <Marquee
           items={[
-            'Clean data',
-            'Honest ranges',
+            '2,338 clean plots',
+            'Full-sample means',
             '120 days per plot',
             'Six agriblocks',
             'Three varieties',
-            'One outcome in kilograms',
+            'Total and per-hectare yield',
           ]}
           className="text-cream-50/35 uppercase tracking-[0.26em]"
         />

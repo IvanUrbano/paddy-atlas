@@ -28,8 +28,8 @@ import {
   type Filters,
   type WeatherWindow,
 } from '../data/eda'
-import { correlation, int, perHa } from '../lib/format'
-import { mean, median, pearson } from '../lib/stats'
+import { correlation, correlation3, int, perHa } from '../lib/format'
+import { etaSquared, mean, median, pearson } from '../lib/stats'
 
 export function Dashboard() {
   const { data, error, loading } = useEda()
@@ -163,12 +163,15 @@ function DashboardBody({ eda }: { eda: Eda }) {
   const summary = useMemo(() => {
     const yields = rows.map((row) => row[COLUMN.yield])
     const hectares = rows.map((row) => row[COLUMN.hectares])
+    const perHectare = rows.map((row) => row[COLUMN.yield] / row[COLUMN.hectares])
     return {
       count: rows.length,
       hasPlots: rows.length > 0,
       median: median(yields),
-      perHa: mean(rows.map((row) => row[COLUMN.yield] / row[COLUMN.hectares])),
+      perHa: mean(perHectare),
       r: pearson(hectares, yields),
+      rPerHa: pearson(hectares, perHectare),
+      sizeEta: etaSquared(perHectare, hectares),
       sizeVaries: new Set(hectares).size > 1,
     }
   }, [rows])
@@ -198,12 +201,12 @@ function DashboardBody({ eda }: { eda: Eda }) {
             Descriptive analytics · Exploratory data analysis
           </p>
           <h1 className="mt-5 max-w-[20ch] font-display text-[clamp(2.5rem,5.6vw,4.5rem)] font-medium leading-[0.98] tracking-[-0.04em]">
-            What the paddy data <span className="text-lime-300">actually</span> says.
+            Paddy yield: patterns and <span className="text-lime-300">limits</span>.
           </h1>
           <p className="mt-6 max-w-xl text-sm leading-relaxed text-cream-50/60 md:text-base">
-            Every measure below is computed from the same clean frame the notebook produced. Use the
-            section bar to move from central tendency to dispersion, relationships and
-            interpretation — filtering by variety, soil, block, nursery or plot size as you go.
+            Every measure below is computed from the cleaned 2,338-plot frame. Use the section bar to
+            move from central tendency to dispersion, relationships and interpretation, filtering by
+            variety, soil, block, nursery or plot size.
           </p>
 
           <ul className="mt-8 flex flex-wrap gap-2 text-[0.66rem] font-semibold text-cream-50/70">
@@ -211,7 +214,7 @@ function DashboardBody({ eda }: { eda: Eda }) {
               `${int(eda.meta.rowsClean)} plots`,
               `${eda.meta.blocks.length} agriblocks`,
               `${eda.meta.varieties.length} varieties`,
-              `${eda.meta.columns} variables`,
+              `${eda.meta.columns + eda.meta.engineered} cleaned fields`,
               `${eda.meta.duplicates} duplicates removed`,
             ].map((item) => (
               <li key={item} className="rounded-full border border-cream-50/15 px-3 py-1.5">
@@ -267,25 +270,31 @@ function DashboardBody({ eda }: { eda: Eda }) {
               label="Mean yield per hectare"
               value={summary.hasPlots ? perHa(summary.perHa) : '—'}
               note={
-                summary.hasPlots
-                  ? 'Plot area removed, so shapes can be compared fairly.'
-                  : 'No plots match the current filters.'
+                !summary.hasPlots
+                  ? 'No plots match the current filters.'
+                  : summary.count === 1
+                    ? 'This is the only plot in view.'
+                    : !summary.sizeVaries
+                      ? 'Plot size is fixed here, so per-hectare and total yield differ only by the common area.'
+                      : 'Dividing by area reduces spread; it does not remove the size effect.'
               }
             />
             <Kpi
-              label="Plot size ↔ yield"
+              label="Plot size ↔ total yield"
               value={
                 !summary.hasPlots
                   ? '—'
                   : summary.sizeVaries
-                    ? `r = ${correlation(summary.r)}`
+                    ? `r = ${correlation3(summary.r)}`
                     : 'r = n/a'
               }
               note={
                 !summary.hasPlots
                   ? 'No plots match the current filters.'
                   : summary.sizeVaries
-                    ? 'A near-perfect linear scale effect, not an agronomic finding.'
+                    ? `Per-ha yield still correlates at r = ${correlation(
+                        summary.rPerHa,
+                      )} (η² = ${summary.sizeEta.toFixed(2)}).`
                     : 'Plot size is fixed by the filter, so the correlation is undefined.'
               }
             />
@@ -350,7 +359,7 @@ function DashboardBody({ eda }: { eda: Eda }) {
             index="02"
             kicker="Dispersion"
             title="How far the plots spread"
-            description="Range, interquartile range, standard deviation and coefficient of variation — then the same spread normalised per hectare."
+            description="Range, interquartile range, standard deviation and coefficient of variation, then the per-hectare spread by category and plot size."
           />
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
             <div className="lg:col-span-7">
@@ -377,7 +386,7 @@ function DashboardBody({ eda }: { eda: Eda }) {
             index="03"
             kicker="Relationships"
             title="What moves together"
-            description="Plot size dominates the correlation matrix, inputs mirror it, and the weather windows barely move at all. Association is not causation."
+            description="Total yield tracks plot size closely. The correlation matrix switches between total and per-hectare outcomes; weather correlations are near zero. Association is not causation."
           />
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
             <div className="lg:col-span-5">
@@ -400,7 +409,7 @@ function DashboardBody({ eda }: { eda: Eda }) {
           <SectionHeading
             index="04"
             kicker="Interpretation"
-            title="What it means"
+            title="What the evidence supports"
             description={`Six readings of the same dataset, followed by the caveats that limit them. Descriptive figures are recalculated for ${
               filtered
                 ? summary.count === 0
@@ -417,7 +426,7 @@ function DashboardBody({ eda }: { eda: Eda }) {
             index="05"
             kicker="Data & method"
             title="Where the numbers come from"
-            description="The audit trail behind the dashboard: duplicate removal, recording quirks and the static JSON pipeline that keeps every figure reproducible."
+            description="The audit trail behind the dashboard: duplicate removal, recording quirks and the static JSON pipeline. Full-sample ANOVA results and the weather audit are generated by the same script."
           />
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
             <div className="lg:col-span-5">
@@ -444,7 +453,8 @@ function PipelinePanel({ eda }: { eda: Eda }) {
           </h2>
           <p className="mt-3 max-w-md text-[0.78rem] leading-relaxed text-cream-50/55">
             The dashboard never queries a database. A Python script profiles the raw CSV,
-            de-duplicates it, engineers seven features and writes a single JSON payload.
+            de-duplicates it, engineers seven features and writes a single JSON payload with
+            descriptive statistics and full-sample group comparisons.
           </p>
         </div>
 

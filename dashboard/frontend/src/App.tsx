@@ -28,9 +28,11 @@ function RouteFallback() {
 }
 
 export default function App() {
+  const basename = import.meta.env.BASE_URL.replace(/\/$/, '')
+
   return (
     <MotionConfig reducedMotion="user">
-      <BrowserRouter>
+      <BrowserRouter basename={basename || undefined}>
         <RouteReset />
         <Suspense fallback={<RouteFallback />}>
           <Routes>

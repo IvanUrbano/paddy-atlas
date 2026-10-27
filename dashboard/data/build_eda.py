@@ -2,6 +2,7 @@ from pathlib import Path
 import json
 
 import pandas as pd
+from scipy import stats as sst
 
 ROOT = Path(__file__).resolve().parent
 RAW = ROOT / "raw" / "paddydataset.csv"
@@ -72,6 +73,20 @@ def stats(series: pd.Series) -> dict:
         "max": round(float(series.max()), 2),
         "mean": round(float(series.mean()), 2),
         "std": round(float(series.std()), 2),
+    }
+
+
+def anova(frame: pd.DataFrame, group: str, value: str) -> dict:
+    groups = [subset[value].to_numpy() for _, subset in frame.groupby(group)]
+    f_stat, p_value = sst.f_oneway(*groups)
+    grand = float(frame[value].mean())
+    ss_between = sum(len(values) * (float(values.mean()) - grand) ** 2 for values in groups)
+    ss_total = float(((frame[value] - grand) ** 2).sum())
+    return {
+        "f": round(float(f_stat), 3),
+        "p": round(float(p_value), 6),
+        "etaSquared": round(ss_between / ss_total, 4) if ss_total else 0.0,
+        "groups": len(groups),
     }
 
 
@@ -206,6 +221,7 @@ def main() -> None:
     wind_window = clean["inst_wind_speed_d61_d90"]
     wind_low = int((wind_window == 4).sum())
     wind_blocks = clean.loc[wind_window == 4, "agriblock"].value_counts().to_dict()
+    size_means = clean.groupby("hectares")["yield_per_ha"].mean()
 
     payload = {
         "meta": {
@@ -265,10 +281,21 @@ def main() -> None:
                 "max": float(clean["30drain"].max()),
             },
             "hectaresYieldCorrelation": round(float(clean["hectares"].corr(clean["paddy_yield"])), 3),
+            "hectaresYieldPerHaCorrelation": round(
+                float(clean["hectares"].corr(clean["yield_per_ha"])), 3
+            ),
             "perHectareSpread": {
                 "min": round(float(clean.groupby("variety")["yield_per_ha"].mean().min()), 1),
                 "max": round(float(clean.groupby("variety")["yield_per_ha"].mean().max()), 1),
             },
+            "perHectareSizeSpread": {
+                "min": round(float(size_means.min()), 1),
+                "max": round(float(size_means.max()), 1),
+            },
+        },
+        "analysis": {
+            "varietyPerHa": anova(clean, "variety", "yield_per_ha"),
+            "sizePerHa": anova(clean, "hectares", "yield_per_ha"),
         },
         "rows": rows,
     }
@@ -278,6 +305,7 @@ def main() -> None:
     print(f"wrote {OUT} ({OUT.stat().st_size / 1024:.0f} KB)")
     print(f"rows {len(rows)} · duplicates {duplicates} · columns {raw.shape[1]}")
     print(f"hectares/yield r = {payload['audit']['hectaresYieldCorrelation']}")
+    print(f"hectares/yield-per-ha eta^2 = {payload['analysis']['sizePerHa']['etaSquared']}")
 
 
 if __name__ == "__main__":

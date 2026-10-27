@@ -87,6 +87,13 @@ export type Meta = {
   hectares: { min: number; q1: number; median: number; q3: number; max: number; mean: number; std: number }
 }
 
+export type Anova = {
+  f: number
+  p: number
+  etaSquared: number
+  groups: number
+}
+
 export type Eda = {
   meta: Meta
   weather: {
@@ -105,7 +112,13 @@ export type Eda = {
     }
     rainFirstWindow: { min: number; max: number }
     hectaresYieldCorrelation: number
+    hectaresYieldPerHaCorrelation: number
     perHectareSpread: { min: number; max: number }
+    perHectareSizeSpread: { min: number; max: number }
+  }
+  analysis: {
+    varietyPerHa: Anova
+    sizePerHa: Anova
   }
   rows: number[][]
 }

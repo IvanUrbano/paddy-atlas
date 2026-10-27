@@ -90,8 +90,8 @@ export function Hero() {
           <div className="lg:col-span-8">
             <SplitWords
               as="h1"
-              lines={['What the', 'paddy data', 'says.']}
-              emphasis={['data']}
+              lines={['Paddy yield', 'across', '2,338 plots.']}
+              emphasis={['2,338']}
               emphasisClassName="text-lime-300"
               className="display-hero text-cream-50"
             />
@@ -104,8 +104,8 @@ export function Hero() {
               transition={{ delay: 0.75, duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
               className="lede max-w-sm text-cream-50/75"
             >
-              Paddy Atlas profiles 2,338 harvests in Tamil Nadu — 120 days of weather, soil and
-              farm decisions measured against one outcome: yield. No sales pitch, just the data.
+              Paddy Atlas profiles 2,338 paddy plots in Tamil Nadu. It compares total yield and
+              yield per hectare with farm traits, inputs and four weather windows.
             </motion.p>
 
             <motion.div
@@ -167,12 +167,12 @@ export function Hero() {
       <div className="relative z-10 border-t border-cream-50/10 bg-forest-950/50 py-3 text-[0.6rem] backdrop-blur-sm">
         <Marquee
           items={[
-            'Descriptive analytics',
-            'Exploratory data analysis',
+            '2,338 clean plots',
             'Six agriblocks',
             'Three varieties',
-            'Forty-five variables',
-            'One outcome',
+            'Forty-five source fields',
+            'Four weather windows',
+            'Total and per-hectare yield',
           ]}
           className="text-cream-50/40 uppercase tracking-[0.28em]"
         />

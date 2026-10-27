@@ -64,16 +64,16 @@ export function Variables() {
             <SectionLabel index="04" label="Variables" className="text-cream-50/55" />
             <SplitWords
               as="h2"
-              lines={['What the field', 'tells us.']}
-              emphasis={['tells']}
+              lines={['The variables', 'in the dataset.']}
+              emphasis={['variables']}
               emphasisClassName="text-lime-300"
               className="display-lg mt-6 text-cream-50"
             />
           </div>
           <Reveal delay={0.15} className="max-w-xs pb-2">
             <p className="text-xs leading-relaxed text-cream-50/50">
-              Forty-five fields, grouped into five families. Scroll to move through the variables
-              that decide what a hectare returns.
+              Forty-five source fields in five groups. Scroll to review the farm traits, inputs and
+              weather records used in the analysis.
             </p>
           </Reveal>
         </div>

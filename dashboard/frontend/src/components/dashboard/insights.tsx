@@ -1,19 +1,20 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { COLUMN, type Eda } from '../../data/eda'
-import { correlation, int } from '../../lib/format'
+import { correlation, correlation3, int } from '../../lib/format'
 import { groupStats, mean, median, pearson } from '../../lib/stats'
-import { Panel, PanelHead } from './primitives'
+import { Panel, PanelHead, Segmented } from './primitives'
 
-const features = [
-  { label: 'Plot size', column: COLUMN.hectares },
-  { label: 'Seed rate', column: COLUMN.seedrate },
-  { label: 'Urea', column: COLUMN.urea },
-  { label: 'Pest ctrl', column: COLUMN.pest },
-  { label: 'Season rain', column: COLUMN.rainTotal },
-  { label: 'Humidity', column: COLUMN.humidity },
-  { label: 'Wind', column: COLUMN.wind },
-  { label: 'Temp range', column: COLUMN.tempRange },
-  { label: 'Yield', column: COLUMN.yield },
+type RowFeature = { label: string; get: (row: number[]) => number }
+
+const dimensions: RowFeature[] = [
+  { label: 'Plot size', get: (row) => row[COLUMN.hectares] },
+  { label: 'Seed rate', get: (row) => row[COLUMN.seedrate] },
+  { label: 'Urea', get: (row) => row[COLUMN.urea] },
+  { label: 'Pest ctrl', get: (row) => row[COLUMN.pest] },
+  { label: 'Season rain', get: (row) => row[COLUMN.rainTotal] },
+  { label: 'Humidity', get: (row) => row[COLUMN.humidity] },
+  { label: 'Wind', get: (row) => row[COLUMN.wind] },
+  { label: 'Temp range', get: (row) => row[COLUMN.tempRange] },
 ]
 
 function cellColor(value: number) {
@@ -23,21 +24,48 @@ function cellColor(value: number) {
 }
 
 export function CorrelationGrid({ rows }: { rows: number[][] }) {
+  const [outcome, setOutcome] = useState<'total' | 'perHa'>('total')
+  const features = useMemo<RowFeature[]>(
+    () => [
+      ...dimensions,
+      {
+        label: outcome === 'total' ? 'Yield' : 'Yield/ha',
+        get:
+          outcome === 'total'
+            ? (row) => row[COLUMN.yield]
+            : (row) => row[COLUMN.yield] / row[COLUMN.hectares],
+      },
+    ],
+    [outcome],
+  )
   const matrix = useMemo(() => {
     return features.map((rowFeature) =>
       features.map((columnFeature) =>
-        pearson(
-          rows.map((row) => row[rowFeature.column]),
-          rows.map((row) => row[columnFeature.column]),
-        ),
+        pearson(rows.map(rowFeature.get), rows.map(columnFeature.get)),
       ),
     )
-  }, [rows])
+  }, [features, rows])
   const insufficient = rows.length < 2
   const constants = features.map(
-    (feature) => new Set(rows.map((row) => row[feature.column])).size < 2,
+    (feature) => new Set(rows.map(feature.get)).size < 2,
   )
   const hasConstant = constants.some(Boolean)
+  const title =
+    insufficient
+      ? 'Not enough plots for a matrix'
+      : hasConstant
+        ? 'Constant inputs break the matrix'
+        : outcome === 'total'
+          ? 'Total yield tracks scale'
+          : 'Per-hectare correlations are weaker'
+  const note =
+    insufficient
+      ? 'At least two plots are needed to compute correlations.'
+      : hasConstant
+        ? 'At least one variable is constant in this view, so correlations involving it are undefined and shown as —.'
+        : outcome === 'total'
+          ? 'Total yield and inputs that scale with area cluster near +1. Weather correlations are near zero. Association is not causation.'
+          : 'Area is divided out, but yield per hectare still correlates with plot size. Weather correlations remain near zero.'
 
   if (rows.length === 0) {
     return (
@@ -58,19 +86,18 @@ export function CorrelationGrid({ rows }: { rows: number[][] }) {
     <Panel>
       <PanelHead
         kicker="Collinearity"
-        title={
-          insufficient
-            ? 'Not enough plots for a matrix'
-            : hasConstant
-              ? 'Constant inputs break the matrix'
-              : 'Almost everything moves together'
-        }
-        note={
-          insufficient
-            ? 'At least two plots are needed to compute correlations.'
-            : hasConstant
-              ? 'At least one input is constant in this view, so correlations involving it are undefined and shown as —.'
-              : 'Because inputs scale with plot size, most pairs sit near +1. Correlation describes association, not cause.'
+        title={title}
+        note={note}
+        action={
+          <Segmented
+            label="Correlation outcome"
+            value={outcome}
+            onChange={setOutcome}
+            options={[
+              { value: 'total', label: 'Total yield' },
+              { value: 'perHa', label: 'Per hectare' },
+            ]}
+          />
         }
       />
       <div className="overflow-x-auto pb-1">
@@ -139,7 +166,9 @@ export function CorrelationGrid({ rows }: { rows: number[][] }) {
             ? 'At least two plots are needed for a correlation.'
             : hasConstant
               ? 'Undefined correlations involving a constant input display as —.'
-              : 'Values are Pearson r on the current view.'}
+              : `Values are Pearson r on the current view. Outcome: ${
+                  outcome === 'total' ? 'total yield' : 'yield per hectare'
+                }.`}
         </span>
       </div>
     </Panel>
@@ -171,7 +200,7 @@ export function SummaryTable({ rows, eda }: { rows: number[][]; eda: Eda }) {
       <PanelHead
         kicker="Group summary"
         title="Averages by category"
-        note="Computed live from the filtered plots. Small differences in total yield disappear per hectare."
+        note="Computed live from the filtered plots. Per-hectare means differ far less than total-yield means, but plot size still matters."
       />
       {rows.length === 0 ? (
         <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-forest-900/15 p-6 text-center text-xs text-forest-900/45">
@@ -270,12 +299,12 @@ export function QualityPanel({ eda }: { eda: Eda }) {
     {
       label: 'Wind outliers',
       value: `${wind.count} rows`,
-      note: `${wind.share}% of plots at ${wind.window} record ${wind.value} knots, all in ${windBlocks}. Across all blocks this window spans ${windRange} knots — kept as a regional signal.`,
+      note: `${wind.share}% of plots at ${wind.window} record ${wind.value} knots, all in ${windBlocks}. Across all blocks this window spans ${windRange} knots; the values were retained as block-level variation.`,
     },
     {
       label: 'Early rain range',
       value: `${eda.audit.rainFirstWindow.min}–${eda.audit.rainFirstWindow.max} mm`,
-      note: 'D1–30 rainfall barely varies, so it carries almost no explanatory power.',
+      note: 'D1–30 rainfall spans 1.5 mm across blocks, so within-window variation is low.',
     },
   ]
 
@@ -284,7 +313,7 @@ export function QualityPanel({ eda }: { eda: Eda }) {
       <PanelHead
         kicker="Data quality"
         title="What the audit changed"
-        note="Cleaning decisions are part of the result, not a footnote."
+        note="Cleaning decisions and their effect on the analysis."
       />
       <ul className="space-y-3">
         {items.map((item) => (
@@ -305,12 +334,16 @@ export function QualityPanel({ eda }: { eda: Eda }) {
       <div className="mt-4 rounded-xl bg-forest-950 p-4 text-cream-50">
         <p className="eyebrow text-[0.5rem] text-lime-300/70">Key caveat</p>
         <p className="mt-2 text-[0.7rem] leading-relaxed text-cream-50/70">
-          Plot size and yield correlate at r = {correlation(eda.audit.hectaresYieldCorrelation)}.
-          Totals mainly describe how big a plot is, so this dashboard leads with per-hectare yield.
+          Plot size and total yield correlate at r ={' '}
+          {correlation3(eda.audit.hectaresYieldCorrelation)}. Yield per hectare still correlates
+          with size at r = {correlation3(eda.audit.hectaresYieldPerHaCorrelation)}; normalising
+          reduces the scale effect but does not remove it.
         </p>
         <p className="mt-2.5 text-[0.62rem] text-cream-50/45">
-          Per-hectare means by category span only {eda.audit.perHectareSpread.min.toFixed(0)}–
-          {eda.audit.perHectareSpread.max.toFixed(0)} kg/ha.
+          Variety means span {eda.audit.perHectareSpread.min.toFixed(0)}–
+          {eda.audit.perHectareSpread.max.toFixed(0)} kg/ha; size-group means span{' '}
+          {eda.audit.perHectareSizeSpread.min.toFixed(0)}–
+          {eda.audit.perHectareSizeSpread.max.toFixed(0)} kg/ha.
         </p>
       </div>
     </Panel>

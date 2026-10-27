@@ -74,26 +74,26 @@ export function Manifesto() {
           <div className="lg:col-span-6 lg:self-start">
             <SplitWords
               as="h2"
-              lines={['Rice feeds half', 'the world. We', 'read the data', 'behind every', 'hectare.']}
-              emphasis={['data']}
+              lines={['A descriptive', 'study of', 'paddy yield.']}
+              emphasis={['descriptive']}
               emphasisClassName="text-leaf-600"
               className="display-xl text-forest-900"
             />
 
             <Reveal delay={0.15}>
               <p className="lede mt-8 max-w-lg text-forest-900/70">
-                Paddy Atlas is a business-analytics case study built on the UCI Paddy Dataset: 2,789
-                field records from six agriblocks in Tamil Nadu, each one tracing a single crop from
-                nursery to harvest.
+                Paddy Atlas is a descriptive case study using the UCI Paddy Dataset: 2,789 field
+                records from six agriblocks in Tamil Nadu, each tracing one crop from nursery to
+                harvest.
               </p>
             </Reveal>
 
             <Reveal delay={0.22}>
               <p className="mt-5 max-w-lg text-sm leading-relaxed text-forest-900/55">
-                Forty-five variables cover farm size, variety, soil, seed rate, fertilizer,
-                pesticide, and rainfall, temperature, humidity and wind across four growth windows.
-                After a full profiling pass, 451 duplicate rows leave the working set at 2,338 clean
-                plots — the number every chart on this page answers to.
+                Forty-five source variables cover farm size, variety, soil, seed rate, fertilizer,
+                pesticide, and rainfall, temperature, humidity and wind. Seven derived features are
+                added after cleaning. Removing 451 duplicate rows leaves 2,338 unique plots, the
+                basis for every statistic shown here.
               </p>
             </Reveal>
 
@@ -102,7 +102,7 @@ export function Manifesto() {
               <div className="pb-3">
                 <p className="eyebrow text-forest-900/40">Nursery → harvest</p>
                 <p className="mt-2 max-w-[18ch] font-display text-lg leading-tight text-forest-900/80">
-                  Every plot is a four-act story told in weather.
+                  Four weather windows per plot.
                 </p>
               </div>
             </div>
@@ -150,7 +150,7 @@ export function Manifesto() {
             </Reveal>
 
             <p className="mt-14 text-[0.66rem] uppercase tracking-[0.22em] text-forest-900/35 sm:mt-12">
-              Plate 01 — transplanted paddy, irrigated belt
+              Transplanted paddy · irrigated field
             </p>
           </div>
         </div>

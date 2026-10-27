@@ -15,8 +15,8 @@ import {
   YAxis,
 } from 'recharts'
 import { COLUMN, type WeatherWindow } from '../../data/eda'
-import { correlation, int, perHa } from '../../lib/format'
-import { groupStats, histogram, median, pearson } from '../../lib/stats'
+import { correlation, correlation3, int, perHa } from '../../lib/format'
+import { etaSquared, groupStats, histogram, linearFit, mean, median, pearson } from '../../lib/stats'
 import { Panel, PanelHead, Segmented } from './primitives'
 
 const colors = {
@@ -79,9 +79,11 @@ export function YieldDistribution({ rows }: { rows: number[][] }) {
         title="How harvests are shaped"
         note={
           rows.length > 0
-            ? `Median ${
-                metric === 'total' ? `${int(middle)} kg` : perHa(middle)
-              } in the current view. Switch measures to see how normalising by area collapses the spread.`
+            ? `Median ${metric === 'total' ? `${int(middle)} kg` : perHa(middle)}. ${
+                metric === 'total'
+                  ? 'Bars combine six plot sizes, so the total-yield distribution reflects that mixture. Switch measures to remove most, not all, of the size effect.'
+                  : 'Per-hectare values remove most, not all, of the size effect.'
+              }`
             : 'No plots match the current filters.'
         }
         action={
@@ -144,6 +146,8 @@ export function ScaleScatter({
   rows: number[][]
   varieties: string[]
 }) {
+  const [metric, setMetric] = useState<'total' | 'perHa'>('total')
+
   const series = useMemo(() => {
     const palette = [colors.forest, colors.leaf, colors.clay]
     return varieties.map((variety, index) => ({
@@ -151,51 +155,107 @@ export function ScaleScatter({
       color: palette[index % palette.length],
       points: rows
         .filter((row) => row[COLUMN.variety] === index)
-        .map((row) => ({ hectares: row[COLUMN.hectares], yield: row[COLUMN.yield] })),
+        .map((row) => ({
+          hectares: row[COLUMN.hectares],
+          value:
+            metric === 'total'
+              ? row[COLUMN.yield]
+              : row[COLUMN.yield] / row[COLUMN.hectares],
+        })),
     }))
-  }, [rows, varieties])
+  }, [rows, varieties, metric])
 
   const xs = rows.map((row) => row[COLUMN.hectares])
-  const ys = rows.map((row) => row[COLUMN.yield])
+  const ys = rows.map((row) =>
+    metric === 'total' ? row[COLUMN.yield] : row[COLUMN.yield] / row[COLUMN.hectares],
+  )
   const r = pearson(xs, ys)
+  const fit = linearFit(xs, ys)
+  const eta = etaSquared(ys, xs)
   const sizeVaries = new Set(xs).size > 1
   const empty = rows.length === 0
+
+  const groupMeans = useMemo(() => {
+    const buckets = new Map<number, number[]>()
+    for (const row of rows) {
+      const hectares = row[COLUMN.hectares]
+      const value =
+        metric === 'total' ? row[COLUMN.yield] : row[COLUMN.yield] / row[COLUMN.hectares]
+      const bucket = buckets.get(hectares)
+      if (bucket) bucket.push(value)
+      else buckets.set(hectares, [value])
+    }
+    return [...buckets.entries()]
+      .sort(([left], [right]) => left - right)
+      .map(([hectares, values]) => ({
+        hectares,
+        value: mean(values),
+        count: values.length,
+      }))
+  }, [rows, metric])
+
+  const top = groupMeans.reduce<(typeof groupMeans)[number] | null>(
+    (best, item) => (!best || item.value > best.value ? item : best),
+    null,
+  )
+
+  const title = empty
+    ? 'No plots to show'
+    : !sizeVaries
+      ? 'Plot size is fixed in this view'
+      : metric === 'total'
+        ? 'Total yield rises with plot size'
+        : 'Yield per hectare by plot size'
+
+  const note = empty
+    ? 'No plots match the current filters.'
+    : !sizeVaries
+      ? 'Every plot has the same area, so no between-size comparison is possible in this view.'
+      : metric === 'total'
+        ? 'Each point is one plot. The dashed line is a least-squares fit; its slope is kilograms per additional hectare.'
+        : 'Area is divided out. Points are plots; the dashed line joins the mean at each plot size. A size gradient remains.'
 
   return (
     <Panel>
       <PanelHead
         kicker="Scale effect"
-        title={
-          empty
-            ? 'No plots to show'
-            : sizeVaries
-              ? 'Plot size explains the harvest'
-              : 'Plot size is fixed in this view'
-        }
-        note={
-          empty
-            ? 'No plots match the current filters.'
-            : sizeVaries
-              ? 'Every point is one plot. The relationship is almost perfectly linear, which is why yield is normalised per hectare.'
-              : 'Every plot has the same area, so the size–yield relationship cannot be estimated until the plot-size filter is widened.'
+        title={title}
+        note={note}
+        action={
+          <Segmented
+            label="Scale measure"
+            value={metric}
+            onChange={setMetric}
+            options={[
+              { value: 'total', label: 'Total yield' },
+              { value: 'perHa', label: 'Per hectare' },
+            ]}
+          />
         }
       />
       {empty ? null : (
-        <div className="mb-2 flex flex-wrap gap-3">
+        <div className="mb-2 flex flex-wrap items-center gap-3">
           {series.map((item) => (
             <LegendChip key={item.variety} color={item.color} label={item.variety} />
           ))}
+          {metric === 'perHa' && groupMeans.length > 1 ? (
+            <LegendChip color={colors.clay} label="Size-group mean" />
+          ) : null}
           <span className="ml-auto rounded-full bg-cream-200/70 px-2.5 py-0.5 text-[0.62rem] font-semibold tabular-nums text-forest-900/70">
-            {sizeVaries ? `r = ${correlation(r)}` : 'r = n/a'}
+            {sizeVaries
+              ? metric === 'total'
+                ? `r = ${correlation3(r)} · R² = ${fit.r2.toFixed(3)}`
+                : `r = ${correlation3(r)} · η² = ${correlation(eta)}`
+              : 'r = n/a'}
           </span>
         </div>
       )}
       {rows.length > 0 ? (
         <div
           role="img"
-          aria-label={`Scatter plot of plot size against yield, correlation ${
-            sizeVaries ? correlation(r) : 'not defined'
-          }`}
+          aria-label={`Scatter plot of plot size against ${
+            metric === 'total' ? 'total yield' : 'yield per hectare'
+          }, correlation ${sizeVaries ? correlation3(r) : 'not defined'}`}
         >
           <ResponsiveContainer width="100%" height={236}>
             <ScatterChart margin={{ top: 8, right: 12, left: -8, bottom: 4 }}>
@@ -210,8 +270,8 @@ export function ScaleScatter({
               />
               <YAxis
                 type="number"
-                dataKey="yield"
-                name="Yield"
+                dataKey="value"
+                name={metric === 'total' ? 'Yield' : 'Yield per ha'}
                 width={52}
                 tickFormatter={(value) => `${Math.round(Number(value) / 1000)}k`}
                 {...axis}
@@ -219,8 +279,9 @@ export function ScaleScatter({
               <Tooltip
                 contentStyle={tooltipStyle}
                 cursor={{ strokeDasharray: '3 3', stroke: colors.ink }}
+                labelFormatter={(label) => `${label} ha`}
                 formatter={(value, name) => [
-                  name === 'Yield' ? `${int(Number(value))} kg` : `${value} ha`,
+                  metric === 'total' ? `${int(Number(value))} kg` : perHa(Number(value)),
                   name,
                 ]}
               />
@@ -230,16 +291,42 @@ export function ScaleScatter({
                   name={item.variety}
                   data={item.points}
                   fill={item.color}
-                  fillOpacity={0.4}
+                  fillOpacity={0.35}
                   isAnimationActive={false}
                 />
               ))}
+              {metric === 'perHa' && groupMeans.length > 1 ? (
+                <Scatter
+                  name="Size-group mean"
+                  data={groupMeans}
+                  fill={colors.clay}
+                  shape="diamond"
+                  line={{ stroke: colors.clay, strokeWidth: 2, strokeDasharray: '5 4' }}
+                  isAnimationActive={false}
+                />
+              ) : null}
+              {metric === 'total' && sizeVaries ? (
+                <ReferenceLine
+                  segment={[
+                    { x: 1, y: fit.intercept + fit.slope },
+                    { x: 6, y: fit.intercept + fit.slope * 6 },
+                  ]}
+                  stroke={colors.ink}
+                  strokeWidth={2}
+                  strokeDasharray="5 4"
+                />
+              ) : null}
             </ScatterChart>
           </ResponsiveContainer>
         </div>
       ) : (
         <EmptyChart />
       )}
+      {!empty && sizeVaries && metric === 'perHa' && top ? (
+        <p className="mt-3 text-[0.66rem] text-forest-900/45">
+          Highest size-group mean: {perHa(top.value)} at {top.hectares} ha (n = {int(top.count)}).
+        </p>
+      ) : null}
     </Panel>
   )
 }
@@ -248,25 +335,22 @@ type CategoryDim = 'variety' | 'soil' | 'block'
 
 const dimMeta: Record<
   CategoryDim,
-  { index: number; kicker: string; title: string; note: string }
+  { index: number; kicker: string; title: string }
 > = {
   variety: {
     index: COLUMN.variety,
     kicker: 'Variety',
     title: 'Yield by rice variety',
-    note: 'Means across the filtered plots. Per-hectare values are almost identical.',
   },
   soil: {
     index: COLUMN.soil,
     kicker: 'Soil',
     title: 'Yield by soil type',
-    note: 'Alluvial and clay plots differ little once plot area is removed.',
   },
   block: {
     index: COLUMN.block,
     kicker: 'Geography',
     title: 'Yield by agriblock',
-    note: 'Six blocks, six near-identical per-hectare averages.',
   },
 }
 
@@ -292,6 +376,26 @@ export function CategoryPanel({
     [rows, labels, meta.index, metric],
   )
 
+  const overall = useMemo(
+    () =>
+      mean(
+        rows.map((row) =>
+          metric === 'perHa' ? row[COLUMN.yield] / row[COLUMN.hectares] : row[COLUMN.yield],
+        ),
+      ),
+    [rows, metric],
+  )
+
+  const values = data.map((item) => item.value)
+  const note =
+    data.length === 0
+      ? 'No plots match the current filters.'
+      : data.length === 1
+        ? 'Only one group is present in the current view.'
+        : metric === 'perHa'
+          ? `Group means span ${int(Math.min(...values))}–${int(Math.max(...values))} kg/ha; overall mean ${int(overall)} kg/ha.`
+          : 'Group means mix yield intensity with plot-size composition. Use per hectare to compare groups of different sizes.'
+
   const height = Math.max(150, data.length * 46 + 20)
 
   return (
@@ -299,7 +403,7 @@ export function CategoryPanel({
       <PanelHead
         kicker={meta.kicker}
         title={meta.title}
-        note={meta.note}
+        note={note}
         action={
           <Segmented
             label="Yield measure"
@@ -328,10 +432,18 @@ export function CategoryPanel({
               <Tooltip
                 contentStyle={tooltipStyle}
                 cursor={{ fill: 'rgba(207, 233, 139, 0.18)' }}
-                formatter={(value) => [
+                formatter={(value, _name, item) => [
                   metric === 'perHa' ? perHa(Number(value)) : `${int(Number(value))} kg`,
-                  metric === 'perHa' ? 'Mean per ha' : 'Mean yield',
+                  `${metric === 'perHa' ? 'Mean per ha' : 'Mean yield'} (n = ${int(
+                    Number(item?.payload?.count ?? 0),
+                  )})`,
                 ]}
+              />
+              <ReferenceLine
+                x={overall}
+                stroke={colors.clay}
+                strokeDasharray="4 4"
+                strokeWidth={1}
               />
               <Bar
                 dataKey="value"
@@ -355,6 +467,11 @@ export function CategoryPanel({
       ) : (
         <EmptyChart />
       )}
+      {data.length > 0 ? (
+        <p className="mt-2 text-[0.66rem] text-forest-900/45">
+          Dashed line marks the overall mean. Bars show group means; n is available in the tooltip.
+        </p>
+      ) : null}
     </Panel>
   )
 }

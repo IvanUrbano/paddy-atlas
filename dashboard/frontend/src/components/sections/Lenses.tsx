@@ -13,16 +13,16 @@ export function Lenses() {
             <SectionLabel index="03" label="Analysis" className="text-forest-900/55" />
             <SplitWords
               as="h2"
-              lines={['Three lenses', 'on one field.']}
-              emphasis={['field.']}
+              lines={['Three stages', 'of analysis.']}
+              emphasis={['analysis.']}
               emphasisClassName="text-leaf-600"
               className="display-xl mt-8 text-forest-900"
             />
           </div>
           <Reveal delay={0.15} className="max-w-sm lg:pb-2">
             <p className="text-sm leading-relaxed text-forest-900/55">
-              Descriptive, diagnostic, predictive — the analytics lifecycle applied end to end, from
-              the first histogram to a yield model that answers a farmer's question.
+              Descriptive and diagnostic stages are available now. Predictive modelling is planned;
+              this release makes no out-of-sample performance claim.
             </p>
           </Reveal>
         </div>

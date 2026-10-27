@@ -81,16 +81,16 @@ export function Findings() {
             <SectionLabel index="07" label="Findings" className="text-forest-900/55" />
             <SplitWords
               as="h2"
-              lines={['What the data', 'insisted on.']}
-              emphasis={['insisted']}
+              lines={['Three patterns', 'from the EDA.']}
+              emphasis={['patterns']}
               emphasisClassName="text-clay-600"
               className="display-xl mt-8 text-forest-900"
             />
           </div>
           <Reveal delay={0.15} className="max-w-sm lg:pb-2">
             <p className="text-sm leading-relaxed text-forest-900/55">
-              Three notes from the exploratory pass — the moments where the dataset corrected an
-              assumption instead of confirming one.
+              Three observations from the exploratory analysis. Each is descriptive; none is a
+              causal estimate.
             </p>
           </Reveal>
         </div>

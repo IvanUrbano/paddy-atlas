@@ -45,6 +45,24 @@ export function pearson(xs: number[], ys: number[]) {
   return covariance / Math.sqrt(varianceX * varianceY)
 }
 
+export function etaSquared(values: number[], groups: number[]) {
+  const size = Math.min(values.length, groups.length)
+  if (size < 2) return 0
+  const grand = mean(values.slice(0, size))
+  const buckets = new Map<number, number[]>()
+  for (let index = 0; index < size; index += 1) {
+    const bucket = buckets.get(groups[index])
+    if (bucket) bucket.push(values[index])
+    else buckets.set(groups[index], [values[index]])
+  }
+  let between = 0
+  for (const bucket of buckets.values()) {
+    between += bucket.length * (mean(bucket) - grand) ** 2
+  }
+  const total = values.slice(0, size).reduce((sum, value) => sum + (value - grand) ** 2, 0)
+  return total === 0 ? 0 : between / total
+}
+
 export type Bin = {
   label: string
   from: number

@@ -18,17 +18,17 @@ export function Method() {
             <SectionLabel index="06" label="Method" className="text-forest-900/55" />
             <SplitWords
               as="h2"
-              lines={['From raw rows', 'to decisions.']}
-              emphasis={['decisions.']}
+              lines={['From raw rows', 'to analysis.']}
+              emphasis={['analysis.']}
               emphasisClassName="text-leaf-600"
               className="display-xl mt-8 text-forest-900"
             />
 
             <Reveal delay={0.15}>
               <p className="mt-7 max-w-md text-sm leading-relaxed text-forest-900/60">
-                The notebook is the source of truth. Every transformation is reproducible: the same
-                order, the same thresholds, the same result — so the dashboard can never drift away
-                from the analysis behind it.
+                The Python pipeline reads the raw CSV, cleans it and computes the descriptive
+                payload, including full-sample group comparisons. The dashboard reads the resulting
+                eda.json and applies filters in the browser.
               </p>
             </Reveal>
 
@@ -41,11 +41,11 @@ export function Method() {
                 </div>
                 <pre className="overflow-x-auto font-mono leading-relaxed">
                   <code>
-                    <span className="text-cream-50/35">&gt;&gt;&gt; </span>df.shape
+                    <span className="text-cream-50/35">&gt;&gt;&gt; </span>clean.shape
                     {'\n'}
-                    <span className="text-lime-300">(2338, 45)</span>
+                    <span className="text-lime-300">(2338, 52)</span>
                     {'\n'}
-                    <span className="text-cream-50/35">&gt;&gt;&gt; </span>df.duplicated().sum()
+                    <span className="text-cream-50/35">&gt;&gt;&gt; </span>clean.duplicated().sum()
                     {'\n'}
                     <span className="text-lime-300">0</span>
                   </code>
@@ -103,8 +103,8 @@ export function Method() {
               <p className="text-[0.78rem] text-cream-50/60">
                 Next build: feature selection and yield regression on the same clean frame.
               </p>
-              <span className="rounded-full bg-lime-300 px-3.5 py-1.5 text-[0.55rem] font-semibold uppercase tracking-[0.16em] text-forest-950">
-                In progress
+              <span className="rounded-full bg-sand-300 px-3.5 py-1.5 text-[0.55rem] font-semibold uppercase tracking-[0.16em] text-forest-900">
+                Planned
               </span>
             </div>
           </Reveal>
