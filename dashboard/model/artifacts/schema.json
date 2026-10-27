@@ -1,0 +1,58 @@
+{
+  "target": "yield_per_ha",
+  "features": [
+    "hectares",
+    "agriblock",
+    "variety",
+    "soil_types",
+    "nursery",
+    "trash_per_ha"
+  ],
+  "numeric": {
+    "trash_per_ha": {
+      "min": 80.0,
+      "max": 100.0
+    }
+  },
+  "categorical": {
+    "hectares": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "agriblock": [
+      "Chinnasalem",
+      "Cuddalore",
+      "Kallakurichi",
+      "Kurinjipadi",
+      "Panruti",
+      "Sankarapuram"
+    ],
+    "variety": [
+      "CO_43",
+      "delux ponni",
+      "ponmani"
+    ],
+    "soil_types": [
+      "alluvial",
+      "clay"
+    ],
+    "nursery": [
+      "dry",
+      "wet"
+    ]
+  },
+  "raw_inputs": {
+    "hectares": {
+      "min": 1.0,
+      "max": 6.0
+    },
+    "trash": {
+      "min": 80.0,
+      "max": 600.0
+    }
+  }
+}

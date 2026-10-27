@@ -1,0 +1,94 @@
+{
+  "trained_at": "2026-10-27T10:47:27+00:00",
+  "target": "yield_per_ha",
+  "features": [
+    "hectares",
+    "agriblock",
+    "variety",
+    "soil_types",
+    "nursery",
+    "trash_per_ha"
+  ],
+  "validation": {
+    "method": "GroupKFold by exact feature profile",
+    "outer_splits": 5,
+    "inner_splits": 4
+  },
+  "data": {
+    "rows": 2338,
+    "unique_feature_profiles": 411,
+    "target_mean_kg_per_ha": 5985.0,
+    "target_std_kg_per_ha": 289.4,
+    "within_profile_std_kg_per_ha": 182.7,
+    "feature_profile_ceiling_r2": 0.5919
+  },
+  "compact_ridge": {
+    "row_level": {
+      "r2": 0.4955,
+      "rmse_kg_per_ha": 205.5,
+      "mae_kg_per_ha": 162.3,
+      "mape_pct": 2.75
+    },
+    "profile_level": {
+      "r2": 0.7516,
+      "rmse_kg_per_ha": 116.0,
+      "mae_kg_per_ha": 84.8,
+      "mape_pct": 1.43,
+      "profiles": 411
+    }
+  },
+  "accurate_gradient_boosting": {
+    "row_level": {
+      "r2": 0.5104,
+      "rmse_kg_per_ha": 202.4,
+      "mae_kg_per_ha": 159.5,
+      "mape_pct": 2.7
+    },
+    "profile_level": {
+      "r2": 0.7814,
+      "rmse_kg_per_ha": 108.8,
+      "mae_kg_per_ha": 77.5,
+      "mape_pct": 1.31,
+      "profiles": 411
+    },
+    "selected_folds": [
+      {
+        "fold": 1,
+        "n_estimators": 200,
+        "learning_rate": 0.03,
+        "inner_mae_kg_per_ha": 160.8
+      },
+      {
+        "fold": 2,
+        "n_estimators": 200,
+        "learning_rate": 0.03,
+        "inner_mae_kg_per_ha": 159.9
+      },
+      {
+        "fold": 3,
+        "n_estimators": 200,
+        "learning_rate": 0.03,
+        "inner_mae_kg_per_ha": 159.6
+      },
+      {
+        "fold": 4,
+        "n_estimators": 200,
+        "learning_rate": 0.03,
+        "inner_mae_kg_per_ha": 162.3
+      },
+      {
+        "fold": 5,
+        "n_estimators": 200,
+        "learning_rate": 0.03,
+        "inner_mae_kg_per_ha": 156.3
+      }
+    ],
+    "interval_90_half_width_kg_per_ha": 312.7,
+    "interval_90_coverage": 0.8999
+  },
+  "final_model": {
+    "n_estimators": 200,
+    "learning_rate": 0.03,
+    "inner_mae_kg_per_ha": 159.5
+  }
+}
