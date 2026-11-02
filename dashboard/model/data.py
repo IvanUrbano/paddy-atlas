@@ -48,7 +48,17 @@ def load_frame(path: Path = DATA_PATH) -> pd.DataFrame:
 
 def build_features(frame: pd.DataFrame) -> pd.DataFrame:
     """Return predictors only. Target columns are never included."""
-    return frame[FEATURES].copy()
+    return coerce_feature_types(frame[FEATURES])
+
+
+def coerce_feature_types(features: pd.DataFrame) -> pd.DataFrame:
+    """Use stable dtypes for both training and online CatBoost inference."""
+    prepared = features[FEATURES].copy()
+    for name in CATEGORICAL_FEATURES:
+        prepared[name] = prepared[name].astype(str)
+    for name in NUMERIC_FEATURES:
+        prepared[name] = pd.to_numeric(prepared[name], errors="raise").astype(float)
+    return prepared
 
 
 def build_training_data(

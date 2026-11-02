@@ -1,5 +1,7 @@
 fastapi==0.139.0
 joblib==1.5.3
+catboost==1.2.8
+numpy==2.4.4
 pandas==3.0.3
 scikit-learn==1.9.0
 uvicorn==0.49.0

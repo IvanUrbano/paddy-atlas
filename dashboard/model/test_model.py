@@ -2,11 +2,15 @@ from __future__ import annotations
 
 import unittest
 
+import joblib
+from pandas.api.types import is_string_dtype
 from sklearn.model_selection import GroupKFold
 
 from .data import (
+    CATEGORICAL_FEATURES,
     FEATURES,
     MODEL_PATH,
+    NUMERIC_FEATURES,
     SOURCE_TARGET,
     TARGET,
     build_features,
@@ -25,6 +29,10 @@ class FeatureTests(unittest.TestCase):
         features = build_features(frame)
         self.assertEqual(list(features.columns), FEATURES)
         self.assertEqual(len(features), len(frame))
+        for name in CATEGORICAL_FEATURES:
+            self.assertTrue(is_string_dtype(features[name].dtype))
+        for name in NUMERIC_FEATURES:
+            self.assertEqual(features[name].dtype.kind, "f")
 
     def test_grouped_cv_never_shares_a_profile(self) -> None:
         features, target, groups, _ = build_training_data()
@@ -49,6 +57,12 @@ class ServiceTests(unittest.TestCase):
         response = self.client.get("/health")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["status"], "ok")
+        self.assertEqual(response.json()["model_type"], "CatBoostRegressor")
+
+    def test_artifact_contains_catboost_model(self) -> None:
+        bundle = joblib.load(MODEL_PATH)
+        self.assertEqual(bundle["model_type"], "CatBoostRegressor")
+        self.assertEqual(type(bundle["pipeline"]).__name__, "CatBoostRegressor")
 
     def test_predict(self) -> None:
         response = self.client.post(

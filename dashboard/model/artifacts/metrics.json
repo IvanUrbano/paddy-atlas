@@ -1,5 +1,5 @@
 {
-  "trained_at": "2026-10-27T10:47:27+00:00",
+  "trained_at": "2026-11-02T12:24:58+00:00",
   "target": "yield_per_ha",
   "features": [
     "hectares",
@@ -10,9 +10,9 @@
     "trash_per_ha"
   ],
   "validation": {
-    "method": "GroupKFold by exact feature profile",
-    "outer_splits": 5,
-    "inner_splits": 4
+    "method": "5-fold GroupKFold by exact feature profile",
+    "splits": 5,
+    "reason": "Identical deployable input profiles never cross train/test folds."
   },
   "data": {
     "rows": 2338,
@@ -37,7 +37,7 @@
       "profiles": 411
     }
   },
-  "accurate_gradient_boosting": {
+  "gradient_boosting_baseline": {
     "row_level": {
       "r2": 0.5104,
       "rmse_kg_per_ha": 202.4,
@@ -50,45 +50,86 @@
       "mae_kg_per_ha": 77.5,
       "mape_pct": 1.31,
       "profiles": 411
+    }
+  },
+  "accurate_catboost": {
+    "row_level": {
+      "r2": 0.5163,
+      "rmse_kg_per_ha": 201.2,
+      "mae_kg_per_ha": 158.9,
+      "mape_pct": 2.69
     },
-    "selected_folds": [
-      {
-        "fold": 1,
-        "n_estimators": 200,
-        "learning_rate": 0.03,
-        "inner_mae_kg_per_ha": 160.8
-      },
-      {
-        "fold": 2,
-        "n_estimators": 200,
-        "learning_rate": 0.03,
-        "inner_mae_kg_per_ha": 159.9
-      },
-      {
-        "fold": 3,
-        "n_estimators": 200,
-        "learning_rate": 0.03,
-        "inner_mae_kg_per_ha": 159.6
-      },
-      {
-        "fold": 4,
-        "n_estimators": 200,
-        "learning_rate": 0.03,
-        "inner_mae_kg_per_ha": 162.3
-      },
-      {
-        "fold": 5,
-        "n_estimators": 200,
-        "learning_rate": 0.03,
-        "inner_mae_kg_per_ha": 156.3
-      }
-    ],
-    "interval_90_half_width_kg_per_ha": 312.7,
+    "profile_level": {
+      "r2": 0.8062,
+      "rmse_kg_per_ha": 102.5,
+      "mae_kg_per_ha": 72.6,
+      "mape_pct": 1.23,
+      "profiles": 411
+    },
+    "interval_90_half_width_kg_per_ha": 307.1,
     "interval_90_coverage": 0.8999
   },
+  "model_selection": {
+    "selected": "accurate_catboost",
+    "selection_metric": "lowest grouped-CV row MAE",
+    "comparison": [
+      {
+        "model": "accurate_catboost",
+        "row_mae_kg_per_ha": 158.9,
+        "profile_mae_kg_per_ha": 72.6
+      },
+      {
+        "model": "gradient_boosting_baseline",
+        "row_mae_kg_per_ha": 159.5,
+        "profile_mae_kg_per_ha": 77.5
+      },
+      {
+        "model": "compact_ridge",
+        "row_mae_kg_per_ha": 162.3,
+        "profile_mae_kg_per_ha": 84.8
+      }
+    ]
+  },
   "final_model": {
-    "n_estimators": 200,
-    "learning_rate": 0.03,
-    "inner_mae_kg_per_ha": 159.5
+    "type": "CatBoostRegressor",
+    "parameters": {
+      "loss_function": "RMSE",
+      "eval_metric": "MAE",
+      "iterations": 300,
+      "depth": 4,
+      "learning_rate": 0.03,
+      "l2_leaf_reg": 8.0,
+      "random_strength": 0.2,
+      "random_seed": 42,
+      "allow_writing_files": false,
+      "thread_count": 4,
+      "verbose": false
+    },
+    "feature_importance": [
+      {
+        "feature": "hectares",
+        "importance": 82.0068
+      },
+      {
+        "feature": "trash_per_ha",
+        "importance": 10.2016
+      },
+      {
+        "feature": "variety",
+        "importance": 4.0351
+      },
+      {
+        "feature": "agriblock",
+        "importance": 2.9703
+      },
+      {
+        "feature": "soil_types",
+        "importance": 0.4273
+      },
+      {
+        "feature": "nursery",
+        "importance": 0.3589
+      }
+    ]
   }
 }

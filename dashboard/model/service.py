@@ -11,7 +11,13 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from .data import CATEGORICAL_FEATURES, FEATURES, MODEL_PATH, TARGET
+from .data import (
+    CATEGORICAL_FEATURES,
+    FEATURES,
+    MODEL_PATH,
+    TARGET,
+    coerce_feature_types,
+)
 
 app = FastAPI(
     title="Paddy Atlas Yield Service",
@@ -91,6 +97,7 @@ def health() -> dict:
     return {
         "status": "ok",
         "target": TARGET,
+        "model_type": bundle.get("model_type", "unknown"),
         "model_trained_at": bundle["trained_at"],
         "features": bundle["features"],
     }
@@ -125,18 +132,20 @@ def predict(payload: PredictionRequest) -> PredictionResponse:
             f"[{bounds['min']}, {bounds['max']}]; the prediction is an extrapolation."
         )
 
-    row = pd.DataFrame(
-        [
-            {
-                "hectares": payload.hectares,
-                "trash_per_ha": trash_per_ha,
-                "agriblock": payload.agriblock,
-                "variety": payload.variety,
-                "soil_types": payload.soil_types,
-                "nursery": payload.nursery,
-            }
-        ],
-        columns=FEATURES,
+    row = coerce_feature_types(
+        pd.DataFrame(
+            [
+                {
+                    "hectares": payload.hectares,
+                    "trash_per_ha": trash_per_ha,
+                    "agriblock": payload.agriblock,
+                    "variety": payload.variety,
+                    "soil_types": payload.soil_types,
+                    "nursery": payload.nursery,
+                }
+            ],
+            columns=FEATURES,
+        )
     )
 
     prediction = float(bundle["pipeline"].predict(row)[0])

@@ -8,12 +8,13 @@ from pathlib import Path
 import joblib
 import numpy as np
 import pandas as pd
+from catboost import CatBoostRegressor
 from sklearn.base import clone
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.linear_model import Ridge
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-from sklearn.model_selection import GridSearchCV, GroupKFold
+from sklearn.model_selection import GroupKFold
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
@@ -33,11 +34,22 @@ from .data import (
 
 RANDOM_STATE = 42
 OUTER_SPLITS = 5
-INNER_SPLITS = 4
 
-FINAL_PARAM_GRID = {
-    "model__n_estimators": [200, 300],
-    "model__learning_rate": [0.03, 0.05],
+# Selected by a like-for-like grouped benchmark. Grouping exact input profiles keeps
+# duplicate observations out of the validation fold and gives an honest estimate for
+# predictions on combinations the model has not seen during training.
+CATBOOST_PARAMS = {
+    "loss_function": "RMSE",
+    "eval_metric": "MAE",
+    "iterations": 300,
+    "depth": 4,
+    "learning_rate": 0.03,
+    "l2_leaf_reg": 8.0,
+    "random_strength": 0.2,
+    "random_seed": RANDOM_STATE,
+    "allow_writing_files": False,
+    "thread_count": 4,
+    "verbose": False,
 }
 
 
@@ -63,14 +75,14 @@ def make_compact_model() -> Pipeline:
     )
 
 
-def make_final_model() -> Pipeline:
+def make_gradient_boosting_baseline() -> Pipeline:
     return Pipeline(
         steps=[
             ("preprocessor", make_preprocessor()),
             (
                 "model",
                 GradientBoostingRegressor(
-                    n_estimators=300,
+                    n_estimators=200,
                     learning_rate=0.03,
                     max_depth=2,
                     min_samples_leaf=5,
@@ -80,6 +92,10 @@ def make_final_model() -> Pipeline:
             ),
         ]
     )
+
+
+def make_final_model() -> CatBoostRegressor:
+    return CatBoostRegressor(**CATBOOST_PARAMS)
 
 
 def regression_metrics(actual: np.ndarray, predicted: np.ndarray) -> dict[str, float]:
@@ -113,7 +129,7 @@ def profile_metrics(
     }
 
 
-def grouped_predictions(
+def grouped_sklearn_predictions(
     estimator: Pipeline,
     features: pd.DataFrame,
     target: pd.Series,
@@ -135,72 +151,30 @@ def grouped_predictions(
     return predictions
 
 
-def nested_predictions(
+def grouped_catboost_predictions(
     features: pd.DataFrame,
     target: pd.Series,
     groups: pd.Series,
-) -> tuple[np.ndarray, list[dict[str, float]]]:
+) -> np.ndarray:
     predictions = np.full(len(features), np.nan, dtype=float)
-    outer = GroupKFold(n_splits=OUTER_SPLITS)
-    inner = GroupKFold(n_splits=INNER_SPLITS)
-    selected: list[dict[str, float]] = []
+    splitter = GroupKFold(n_splits=OUTER_SPLITS)
 
     for fold, (train_index, test_index) in enumerate(
-        outer.split(features, target, groups), start=1
+        splitter.split(features, target, groups), start=1
     ):
-        search = GridSearchCV(
-            estimator=make_final_model(),
-            param_grid=FINAL_PARAM_GRID,
-            scoring="neg_mean_absolute_error",
-            cv=inner,
-            n_jobs=1,
-            refit=True,
-            error_score="raise",
-        )
-        search.fit(
+        model = make_final_model()
+        model.fit(
             features.iloc[train_index],
             target.iloc[train_index],
-            groups=groups.iloc[train_index],
+            cat_features=CATEGORICAL_FEATURES,
+            verbose=False,
         )
-        predictions[test_index] = search.predict(features.iloc[test_index])
-        selected.append(
-            {
-                "fold": fold,
-                "n_estimators": int(search.best_params_["model__n_estimators"]),
-                "learning_rate": float(search.best_params_["model__learning_rate"]),
-                "inner_mae_kg_per_ha": round(float(-search.best_score_), 1),
-            }
-        )
-        print(
-            f"  fold {fold}/{OUTER_SPLITS}: "
-            f"{search.best_params_['model__n_estimators']} trees, "
-            f"lr={search.best_params_['model__learning_rate']}"
-        )
+        predictions[test_index] = model.predict(features.iloc[test_index])
+        print(f"  fold {fold}/{OUTER_SPLITS} complete")
 
     if np.isnan(predictions).any():
         raise RuntimeError("Some rows did not receive an out-of-fold prediction")
-    return predictions, selected
-
-
-def fit_final_model(
-    features: pd.DataFrame, target: pd.Series, groups: pd.Series
-) -> tuple[Pipeline, dict[str, float]]:
-    search = GridSearchCV(
-        estimator=make_final_model(),
-        param_grid=FINAL_PARAM_GRID,
-        scoring="neg_mean_absolute_error",
-        cv=GroupKFold(n_splits=OUTER_SPLITS),
-        n_jobs=1,
-        refit=True,
-        error_score="raise",
-    )
-    search.fit(features, target, groups=groups)
-    params = {
-        "n_estimators": int(search.best_params_["model__n_estimators"]),
-        "learning_rate": float(search.best_params_["model__learning_rate"]),
-        "inner_mae_kg_per_ha": round(float(-search.best_score_), 1),
-    }
-    return search.best_estimator_, params
+    return predictions
 
 
 def build_schema(frame: pd.DataFrame) -> dict:
@@ -231,6 +205,17 @@ def build_schema(frame: pd.DataFrame) -> dict:
     }
 
 
+def metric_block(
+    features: pd.DataFrame,
+    target: pd.Series,
+    predictions: np.ndarray,
+) -> dict:
+    return {
+        "row_level": regression_metrics(target.to_numpy(), predictions),
+        "profile_level": profile_metrics(features, target.to_numpy(), predictions),
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train the Paddy Atlas yield models")
     parser.add_argument("--data", type=Path, default=DATA_PATH)
@@ -241,22 +226,61 @@ def main() -> None:
     args.artifacts.mkdir(parents=True, exist_ok=True)
 
     print(f"rows={len(features)} profiles={groups.nunique()} features={len(FEATURES)}")
-    print("Training compact ridge baseline...")
-    compact_predictions = grouped_predictions(make_compact_model(), features, target, groups)
+    print("Evaluating compact ridge baseline...")
+    ridge_predictions = grouped_sklearn_predictions(
+        make_compact_model(), features, target, groups
+    )
 
-    print("Training accurate gradient-boosted model with grouped nested CV...")
-    accurate_predictions, selected_folds = nested_predictions(features, target, groups)
+    print("Evaluating previous gradient-boosting baseline...")
+    gradient_predictions = grouped_sklearn_predictions(
+        make_gradient_boosting_baseline(), features, target, groups
+    )
 
-    print("Selecting final hyperparameters and refitting on all rows...")
-    final_pipeline, selected_params = fit_final_model(features, target, groups)
+    print("Evaluating CatBoost production model...")
+    catboost_predictions = grouped_catboost_predictions(features, target, groups)
 
-    residuals = np.abs(target.to_numpy() - accurate_predictions)
+    print("Refitting CatBoost on all rows...")
+    final_model = make_final_model()
+    final_model.fit(
+        features,
+        target,
+        cat_features=CATEGORICAL_FEATURES,
+        verbose=False,
+    )
+
+    residuals = np.abs(target.to_numpy() - catboost_predictions)
     residual_q90 = float(np.quantile(residuals, 0.90))
     group_means = (
         pd.DataFrame({"profile": groups, "target": target})
         .groupby("profile", sort=False)["target"]
         .transform("mean")
         .to_numpy()
+    )
+
+    candidate_metrics = {
+        "compact_ridge": metric_block(features, target, ridge_predictions),
+        "gradient_boosting_baseline": metric_block(
+            features, target, gradient_predictions
+        ),
+        "accurate_catboost": metric_block(features, target, catboost_predictions),
+    }
+    candidate_metrics["accurate_catboost"].update(
+        {
+            "interval_90_half_width_kg_per_ha": round(residual_q90, 1),
+            "interval_90_coverage": round(float(np.mean(residuals <= residual_q90)), 4),
+        }
+    )
+
+    comparison = sorted(
+        (
+            {
+                "model": name,
+                "row_mae_kg_per_ha": values["row_level"]["mae_kg_per_ha"],
+                "profile_mae_kg_per_ha": values["profile_level"]["mae_kg_per_ha"],
+            }
+            for name, values in candidate_metrics.items()
+        ),
+        key=lambda item: item["row_mae_kg_per_ha"],
     )
 
     data_summary = {
@@ -276,40 +300,50 @@ def main() -> None:
         "feature_profile_ceiling_r2": round(float(r2_score(target, group_means)), 4),
     }
 
+    feature_importance = sorted(
+        (
+            {"feature": name, "importance": round(float(value), 4)}
+            for name, value in zip(FEATURES, final_model.get_feature_importance())
+        ),
+        key=lambda item: item["importance"],
+        reverse=True,
+    )
+
+    trained_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
     metrics = {
-        "trained_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+        "trained_at": trained_at,
         "target": TARGET,
         "features": FEATURES,
         "validation": {
-            "method": "GroupKFold by exact feature profile",
-            "outer_splits": OUTER_SPLITS,
-            "inner_splits": INNER_SPLITS,
+            "method": "5-fold GroupKFold by exact feature profile",
+            "splits": OUTER_SPLITS,
+            "reason": "Identical deployable input profiles never cross train/test folds.",
         },
         "data": data_summary,
-        "compact_ridge": {
-            "row_level": regression_metrics(target, compact_predictions),
-            "profile_level": profile_metrics(features, target, compact_predictions),
+        **candidate_metrics,
+        "model_selection": {
+            "selected": "accurate_catboost",
+            "selection_metric": "lowest grouped-CV row MAE",
+            "comparison": comparison,
         },
-        "accurate_gradient_boosting": {
-            "row_level": regression_metrics(target, accurate_predictions),
-            "profile_level": profile_metrics(features, target, accurate_predictions),
-            "selected_folds": selected_folds,
-            "interval_90_half_width_kg_per_ha": round(residual_q90, 1),
-            "interval_90_coverage": round(float(np.mean(residuals <= residual_q90)), 4),
+        "final_model": {
+            "type": "CatBoostRegressor",
+            "parameters": CATBOOST_PARAMS,
+            "feature_importance": feature_importance,
         },
-        "final_model": selected_params,
     }
     schema = build_schema(frame)
 
     bundle = {
-        "pipeline": final_pipeline,
+        "pipeline": final_model,
+        "model_type": "CatBoostRegressor",
         "features": FEATURES,
         "numeric_features": NUMERIC_FEATURES,
         "categorical_features": CATEGORICAL_FEATURES,
         "schema": schema,
         "metrics": metrics,
         "interval_90_half_width_kg_per_ha": round(residual_q90, 1),
-        "trained_at": metrics["trained_at"],
+        "trained_at": trained_at,
     }
 
     joblib.dump(bundle, args.artifacts / MODEL_PATH.name)
