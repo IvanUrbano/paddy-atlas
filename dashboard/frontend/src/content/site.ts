@@ -56,7 +56,7 @@ export const lenses = [
     title: 'Descriptive',
     question: 'What patterns are present?',
     body: 'Distributions and grouped means for total yield, yield per hectare, farm traits, inputs and weather across the clean plots.',
-    points: ['2,338 records', '6 dashboard sections', 'Total and per-hectare measures'],
+    points: ['2,338 records', '7 dashboard sections', 'Total and per-hectare measures'],
     status: 'Available',
     image: 'terrace' as ImageName,
   },
@@ -73,9 +73,9 @@ export const lenses = [
     index: '03',
     title: 'Predictive',
     question: 'Can yield be predicted out of sample?',
-    body: 'Planned work: feature selection and regression with block-grouped validation. This release is descriptive and diagnostic only.',
-    points: ['Feature selection', 'Yield regression', 'Grouped validation'],
-    status: 'Planned',
+    body: 'A CatBoost model estimates yield per hectare from field characteristics. Identical input profiles stay together during five-fold validation.',
+    points: ['Six field inputs', 'Yield per hectare', 'Grouped validation'],
+    status: 'Available',
     image: 'grain' as ImageName,
   },
 ]
@@ -202,8 +202,8 @@ export const pipeline = [
   {
     index: '05',
     title: 'Model',
-    body: 'Feature selection and yield regression are planned. This release stops at descriptive and diagnostic analysis.',
-    tag: 'next',
+    body: 'The CatBoost yield model is available in the dashboard when its prediction service is running.',
+    tag: 'available',
   },
 ]
 

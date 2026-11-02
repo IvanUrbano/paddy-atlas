@@ -6,6 +6,7 @@ const DASHBOARD_SECTIONS = [
   { id: 'dispersion', label: 'Dispersion' },
   { id: 'relationships', label: 'Relationships' },
   { id: 'interpretation', label: 'Interpretation' },
+  { id: 'prediction', label: 'Prediction' },
   { id: 'method', label: 'Data & method' },
 ] as const
 

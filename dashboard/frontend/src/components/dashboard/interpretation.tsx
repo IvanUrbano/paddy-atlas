@@ -189,13 +189,13 @@ export function Interpretation({
     {
       index: '06',
       kicker: 'Model',
-      title: 'Per-hectare modelling still needs a size term.',
+      title: 'Yield per hectare can be estimated with field inputs.',
       body: `A model of total yield would largely recover plot area. A per-hectare target removes most of that scaling, but size still accounts for η² = ${facts.sizeEta.toFixed(
         2,
       )} of per-hectare variance in ${scope}, and per-hectare CV is ${facts.cvPerHa.toFixed(
         1,
-      )}%. A planned model should include size or block structure and use group-aware validation. No model is fitted in this release.`,
-      chips: ['target kg/ha', 'size term', 'block-grouped CV'],
+      )}%. The CatBoost model includes size and agriblock, and was assessed with exact-profile grouped validation. Use the prediction section to try it.`,
+      chips: ['target kg/ha', 'CatBoost', 'grouped validation'],
     },
   ]
 
@@ -282,7 +282,7 @@ export function Interpretation({
           </div>
           <div className="mt-6 border-t border-cream-50/10 pt-4">
             <p className="text-[0.72rem] leading-relaxed text-cream-50/55">
-              Not supported by this release: causal effects, out-of-sample prediction, or a claim
+              The model provides an out-of-sample estimate, not a causal effect or a guarantee
               that per-hectare yield is uniform across plot sizes.
             </p>
             <p className="mt-3 text-[0.62rem] tabular-nums text-cream-50/35">

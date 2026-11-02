@@ -21,8 +21,8 @@ export function Lenses() {
           </div>
           <Reveal delay={0.15} className="max-w-sm lg:pb-2">
             <p className="text-sm leading-relaxed text-forest-900/55">
-              Descriptive and diagnostic stages are available now. Predictive modelling is planned;
-              this release makes no out-of-sample performance claim.
+              Explore descriptive patterns, compare field groups and estimate yield per hectare
+              with a validated CatBoost model. Live predictions require the model service.
             </p>
           </Reveal>
         </div>
